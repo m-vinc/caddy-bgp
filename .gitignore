@@ -1,0 +1,8 @@
+/caddy
+/bin/
+/dist/
+/tmp/
+*.test
+*.out
+/test/lab/bin/
+/buildenv_*

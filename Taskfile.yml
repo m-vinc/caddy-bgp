@@ -1,0 +1,76 @@
+version: '3'
+vars:
+  VERSION: '{{.VERSION | default "dev"}}'
+  IMAGE: '{{.IMAGE | default "caddy-bgp"}}'
+  ARCH: '{{.ARCH | default ARCH}}'
+  CADDY_VERSION: 'v2.11.9'
+  XCADDY_VERSION: 'v0.4.7'
+  PLUGINS: '{{.PLUGINS | default ""}}'
+  CONTAINER: '{{.CONTAINER | default "docker"}}'
+  GO_IMAGE: '{{.GO_IMAGE | default "golang:1.27.1"}}'
+tasks:
+  default:
+    desc: 'Build caddy with the bgp app'
+    cmds:
+      - task: 'build'
+  help:
+    desc: 'List available tasks'
+    cmds:
+      - '{{.TASK_EXE | shellQuote}} --list'
+  build:
+    desc: 'Build caddy with the bgp app into bin/caddy'
+    cmds:
+      - 'CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/caddy ./cmd/caddy'
+  build-xcaddy:
+    desc: 'Build with xcaddy (PLUGINS="module@version ..." adds more plugins)'
+    cmds:
+      - |
+        set -e
+        with="--with github.com/m-vinc/caddy-bgp={{.ROOT_DIR}}"
+        for plugin in {{.PLUGINS}}; do with="$with --with $plugin"; done
+        go run github.com/caddyserver/xcaddy/cmd/xcaddy@{{.XCADDY_VERSION}} build {{.CADDY_VERSION}} $with --output bin/caddy
+  test:
+    desc: 'Run Go vet and the tests with the race detector'
+    cmds:
+      - 'go vet ./...'
+      - 'go test -race ./...'
+  test-linux:
+    desc: 'Run the tests, netlink ones included, in a Linux container'
+    cmds:
+      - |
+        {{.CONTAINER}} run --rm --cap-add NET_ADMIN --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+          -v {{.ROOT_DIR}}:/src:ro -v "$(go env GOMODCACHE)":/go/pkg/mod -w /src \
+          {{.GO_IMAGE}} go test -race -tags netns ./...
+  test-lab:
+    desc: 'Run the FRR lab (FRR_IMAGE overrides the router image)'
+    cmds:
+      - task: 'lab-binary'
+      - 'go test -tags lab -count=1 -timeout 30m -v ./test/lab'
+  lab-binary:
+    internal: true
+    cmds:
+      - 'CGO_ENABLED=0 GOOS=linux GOARCH={{.ARCH}} go build -o test/lab/bin/caddy ./cmd/caddy'
+  check-style:
+    desc: 'Check Go formatting, linters and repository style'
+    cmds:
+      - 'go run ./cmd/stylecheck'
+  lint:
+    desc: 'Alias for the repository style check'
+    cmds:
+      - task: 'check-style'
+  format:
+    desc: 'Apply safe Go formatting fixes'
+    cmds:
+      - 'golangci-lint fmt'
+  image:
+    desc: 'Build the container image (PLUGINS="module@version ..." IMAGE=caddy-bgp VERSION=dev ARCH=amd64)'
+    cmds:
+      - '{{.CONTAINER}} build --platform linux/{{.ARCH}} --build-arg PLUGINS="{{.PLUGINS}}" -t {{.IMAGE}}:{{.VERSION}} -f Containerfile .'
+  tidy:
+    desc: 'Tidy Go modules'
+    cmds:
+      - 'go mod tidy'
+  clean:
+    desc: 'Remove binaries'
+    cmds:
+      - 'rm -rf bin test/lab/bin'

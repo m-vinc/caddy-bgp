@@ -1,0 +1,51 @@
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags:
+    - lab
+    - netns
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - nolintlint
+    - wsl_v5
+  settings:
+    errcheck:
+      check-blank: false
+      disable-default-exclusions: true
+    nolintlint:
+      require-specific: true
+      require-explanation: false
+    wsl_v5:
+      default: none
+      enable:
+        - after-block
+        - err
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF1008
+  exclusions:
+    generated: lax
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

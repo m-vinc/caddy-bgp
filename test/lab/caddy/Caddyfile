@@ -1,0 +1,69 @@
+{
+	admin 127.0.0.1:2019
+	auto_https off
+	persist_config off
+	grace_period 5s
+	log {
+		output stdout
+		format json
+	}
+	metrics
+	bgp {
+		local_as 65000
+		router_id {env.NODE_IPV4}
+		drain_delay 3s
+		{$BGP_INTERFACE}
+
+		peer 192.0.2.1 {
+			remote_as 64500
+			description rt1
+			local_address {env.NODE_IPV4}
+		}
+		peer 2001:db8:1::1 {
+			remote_as 64500
+			description rt1
+			local_address {env.NODE_IPV6}
+			ttl_security 1
+		}
+		peer 192.0.2.2 {
+			remote_as 64503
+			description rt2
+			local_address {env.NODE_IPV4}
+			bfd 300ms 3
+		}
+		peer 2001:db8:1::2 {
+			remote_as 64503
+			description rt2
+			local_address {env.NODE_IPV6}
+		}
+		peer {env.NODE_PEER3} {
+			remote_as 64599
+			optional
+		}
+
+		announce edge 198.51.100.100/32 2001:db8:ffff::100/128 {
+			next_hop {env.NODE_IPV4} {env.NODE_IPV6}
+			community 65000:100
+			med {$NODE_MED:50}
+			hold_down 1s
+			check http http://127.0.0.1:9180/healthz {
+				interval 500ms
+				timeout 1s
+				rise 2
+				fall 2
+			}
+		}
+	}
+}
+
+http://127.0.0.1:9180 {
+	bind 127.0.0.1
+	root * /tmp
+	@up file /healthy
+	respond @up "ok" 200
+	respond "unhealthy" 503
+}
+
+:80 {
+	respond "{system.hostname} {remote_host} {$GREETING:hello}"
+}

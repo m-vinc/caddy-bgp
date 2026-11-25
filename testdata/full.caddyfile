@@ -1,0 +1,79 @@
+{
+	servers :8443 {
+		name site
+	}
+	bgp {
+		local_as 65000
+		router_id {env.BGP_ROUTER_ID}
+		listen 192.0.2.10 2001:db8:1::10
+		port 1179
+		interface cbgp0
+		drain_delay 15s
+
+		peer 192.0.2.1 {
+			remote_as 64500
+			description rt1
+			local_address 192.0.2.10
+			families ipv4
+			password {env.BGP_PASSWORD}
+			timers 3s 9s
+			connect_retry 5s
+			ttl_security 1
+			bfd 300ms 3
+		}
+		peer 2001:db8:1::1 {
+			remote_as 64500
+			families ipv6
+			passive
+			max_prefixes 100
+		}
+		peer {env.BGP_PEER2} {
+			remote_as 64503
+			optional
+			multihop 2
+			bfd {
+				multihop
+			}
+		}
+
+		announce web 198.51.100.100/32 {
+			prefix 2001:db8:ffff::100/128
+			next_hop 192.0.2.10 2001:db8:1::10
+			community 65000:100 no-export
+			med 10
+			prepend 1
+			hold_down 10s 2m
+			flap_window 10m
+			check http https://127.0.0.1/api/ready {
+				interval 5s
+				timeout 2s
+				rise 2
+				fall 3
+				status 200 204
+				host app.example.com
+				header X-Probe bgp
+				tls_server_name app.example.com
+				tls_insecure
+			}
+			check server site {
+				interval 1s
+			}
+			check upstreams 127.0.0.1:9000 {
+				server site
+				min_available 1
+				fall 1
+			}
+			check tcp 127.0.0.1:9000
+			check icmp 192.0.2.1 {
+				interval 1s
+			}
+		}
+		announce static 203.0.113.0/24 {
+			always
+		}
+	}
+}
+
+http://app.example.com:8443 {
+	reverse_proxy 127.0.0.1:9000
+}

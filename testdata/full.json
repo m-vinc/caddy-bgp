@@ -1,0 +1,72 @@
+{
+	"local_as": "65000",
+	"router_id": "{env.BGP_ROUTER_ID}",
+	"listen": ["192.0.2.10", "2001:db8:1::10"],
+	"port": "1179",
+	"interface": "cbgp0",
+	"drain_delay": 15000000000,
+	"peers": [
+		{
+			"address": "192.0.2.1",
+			"remote_as": "64500",
+			"description": "rt1",
+			"local_address": "192.0.2.10",
+			"families": ["ipv4"],
+			"password": "{env.BGP_PASSWORD}",
+			"hold_time": 9000000000,
+			"keepalive_interval": 3000000000,
+			"connect_retry": 5000000000,
+			"ttl_security_hops": 1,
+			"bfd": {"interval": 300000000, "multiplier": 3}
+		},
+		{
+			"address": "2001:db8:1::1",
+			"remote_as": "64500",
+			"families": ["ipv6"],
+			"passive": true,
+			"max_prefixes": 100
+		},
+		{
+			"address": "{env.BGP_PEER2}",
+			"remote_as": "64503",
+			"optional": true,
+			"multihop_ttl": 2,
+			"bfd": {"multihop": true}
+		}
+	],
+	"announcements": [
+		{
+			"name": "web",
+			"prefixes": ["198.51.100.100/32", "2001:db8:ffff::100/128"],
+			"next_hops": ["192.0.2.10", "2001:db8:1::10"],
+			"communities": ["65000:100", "no-export"],
+			"med": 10,
+			"as_path_prepend": 1,
+			"hold_down": 10000000000,
+			"max_hold_down": 120000000000,
+			"flap_window": 600000000000,
+			"checks": [
+				{
+					"interval": 5000000000,
+					"timeout": 2000000000,
+					"rise": 2,
+					"fall": 3,
+					"probe": {
+						"probe": "http",
+						"url": "https://127.0.0.1/api/ready",
+						"host": "app.example.com",
+						"headers": {"X-Probe": ["bgp"]},
+						"status": ["200", "204"],
+						"tls_server_name": "app.example.com",
+						"tls_insecure": true
+					}
+				},
+				{"interval": 1000000000, "probe": {"probe": "server", "name": "site"}},
+				{"fall": 1, "probe": {"probe": "upstreams", "dials": ["127.0.0.1:9000"], "server": "site", "min_available": 1}},
+				{"probe": {"probe": "tcp", "address": "127.0.0.1:9000"}},
+				{"interval": 1000000000, "probe": {"probe": "icmp", "address": "192.0.2.1"}}
+			]
+		},
+		{"name": "static", "prefixes": ["203.0.113.0/24"], "always": true}
+	]
+}
